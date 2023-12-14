@@ -62,6 +62,31 @@ query_part_1() {
 
 }
 
+query_part_2(){
+    local i="${1}"
+    local j1="${2}"
+    local j2="${3}"
+    local number="${4}"
+    local type="${5}"
+    local DB_NAME="${6}"
+
+    i_l=$(( ${i} - 1 ))
+    i_r=$(( ${i} + 1 ))
+
+    j_l=$((${j1} - 1 ))
+    j_r=$((${j2} + 1 ))
+
+sqlite3 "${DB_NAME}" <<EOF | awk '{arr[i++]=$0} END { if (NR == 2) print arr[0]*arr[1]  }'
+    SELECT match_capture FROM game
+    WHERE (
+        (type = 'number' ) AND
+        ( (i >= ${i_l}) AND (i <= ${i_r}) ) AND
+            (( j1 <= ${j_r} ) AND ( j2 >= ${j_l} ))
+
+    );
+EOF
+
+}
 
 DB_NAME='./test.db'
 N_JOBS=3
@@ -71,6 +96,7 @@ N_JOBS=3
 }
 
 export -f query_part_1
+export -f query_part_2
 
 sqlite3 "${DB_NAME}" -csv "SELECT * FROM game WHERE type = 'number'"  \
     | parallel \
@@ -78,3 +104,12 @@ sqlite3 "${DB_NAME}" -csv "SELECT * FROM game WHERE type = 'number'"  \
         --colsep ',' \
         'query_part_1 {1} {2} {3} {4} {5}' "${DB_NAME}" \
     | awk '{sum+=$0} END {print sum}'
+
+sqlite3 "${DB_NAME}" -csv "SELECT * FROM game WHERE type = 'symbol' AND match_capture = '*'" \
+    | parallel \
+        -j "${N_JOBS}" \
+        --colsep ',' \
+        'query_part_2 {1} {2} {3} {4} {5}' "${DB_NAME}"  \
+    | awk '{sum+=$0} END {print sum}'
+
+        

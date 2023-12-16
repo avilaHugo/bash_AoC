@@ -1,115 +1,69 @@
 #!/usr/bin/env bash
 
+create_db() {
+    local db_name="${1}"
 
-create_db() { 
-    while read -r line;do
-        # grep -> LINE_NUMBER:MATCH_START:MATCH_CAPTURE
-        grep --label=$((c++)) -H -Poab '\d+|[^\d.]+' <<< $line
+    while read -r line ;do
+        grep --label="$((c++))" -H -Pob '[[:digit:]]+|[^[:digit:].]+' <<< "${line}" 
     done \
-        | awk -F ':' '
-                 # LINE, MATCH_OFFSET, MATCH_CAPTURE -> i, j1, j2, MATCH_CAPTURE, TYPE
-                 BEGIN {
-                    OFS=FS
-                 }
-                 {
-                    type = ($3 ~ /[[:digit:]]+/) ? "number" : "symbol"
-                    print $1, $2, ($2 + length($3) - 1), $3, type
-                 }
-                 ' \
-        | awk -F':' -v q="'" '
+        | awk -F ':' -v OFS=',' '{print $1,$2,( $2 + length($3) - 1 ), $3, $3 ~ /[[:digit:]]+/? "number" : "symbol" }' \
+        | awk -F ',' -v q="'" '
             BEGIN {
-                print "CREATE TABLE game ( i INT, j1 INT, j2 INT, match_capture TEXT, type TEXT, PRIMARY KEY (type, i, j1));"
+                print "CREATE TABLE game (i INT, j1 INT, j2 INT, match TEXT, type TEXT);"
             }
-
-            { printf "INSERT INTO game VALUES (%s,%s,%s,%s,%s);\n", $1, $2, $3, q$4q, q$5q }
+            {
+                printf("INSERT INTO game VALUES(%s, %s, %s, %s, %s);\n", $1, $2, $3, q$4q, q$5q)
+            }
         ' \
-        | sqlite3 "${DB_NAME}"
-}
-
-query_part_1() {
-    local i="${1}"
-    local j1="${2}"
-    local j2="${3}"
-    local number="${4}"
-    local type="${5}"
-    local DB_NAME="${6}"
-
-    i_l=$(( ${i} - 1 ))
-    i_r=$(( ${i} + 1 ))
-
-    j_l=$((${j1} - 1 ))
-    j_r=$((${j2} + 1 ))
-
-    printf '
-        SELECT * FROM game
-        WHERE (
-            (type = %s) AND
-            (i >= %s) AND
-            (i <= %s) AND
-            (j1 >= %s) AND 
-            (j2 <= %s) 
-        )
-        LIMIT 1;\n' \
-            "'symbol'" \
-            "${i_l}" \
-            "${i_r}" \
-            "${j_l}" \
-            "${j_r}" \
-            \
-    | sqlite3 "${DB_NAME}" \
-    | grep -q '.' \
-    && echo "${number}"
+        | sqlite3 "${db_name}" 
 
 }
 
-query_part_2(){
-    local i="${1}"
-    local j1="${2}"
-    local j2="${3}"
-    local number="${4}"
-    local type="${5}"
-    local DB_NAME="${6}"
+part_1_query(){
+    local db_name="${1}"
 
-    i_l=$(( ${i} - 1 ))
-    i_r=$(( ${i} + 1 ))
-
-    j_l=$((${j1} - 1 ))
-    j_r=$((${j2} + 1 ))
-
-sqlite3 "${DB_NAME}" <<EOF | awk '{arr[i++]=$0} END { if (NR == 2) print arr[0]*arr[1]  }'
-    SELECT match_capture FROM game
-    WHERE (
-        (type = 'number' ) AND
-        ( (i >= ${i_l}) AND (i <= ${i_r}) ) AND
-            (( j1 <= ${j_r} ) AND ( j2 >= ${j_l} ))
-
-    );
+    sqlite3 "${db_name}" "SELECT * FROM game WHERE type = 'number'"  \
+        | while IFS='|' read -r i j1 j2 _match _type;do
+            cat << EOF | sqlite3 "${db_name}" | grep -m1  -q . && echo "${_match}"
+            SELECT * FROM game
+            WHERE (
+                (type = 'symbol') AND
+                ( i >= $(( ${i} - 1))  ) AND
+                ( i <= $(( ${i} + 1))  ) AND
+                ( j1 >= $(( ${j1} - 1))  ) AND
+                ( j2 <= $(( ${j2} + 1))  ) 
+            );
 EOF
+        done
 
 }
 
-DB_NAME='./test.db'
-N_JOBS=3
+part_2_query(){
+    local db_name="${1}"
 
-[[ ! -f "${DB_NAME}" ]] && {
-    create_db
+    sqlite3 "${db_name}" "SELECT * FROM game WHERE type = 'symbol' AND match = '*'"  \
+        | while IFS='|' read -r i j1 j2 _match _type;do
+            cat << EOF | sqlite3 "${db_name}" | awk '{ arr[l++]=$0  } END { if (NR == 2) print arr[0]*arr[1]  }'
+            SELECT match FROM game
+            WHERE (
+                (type = 'number') AND
+                ( i >= $(( ${i} - 1))  ) AND
+                ( i <= $(( ${i} + 1))  ) AND
+                (  $(( ${j1} - 1)) <= j2  ) AND
+                (  $(( ${j2} + 1)) >= j1 ) 
+            );
+EOF
+        done
+
 }
 
-export -f query_part_1
-export -f query_part_2
+DB_NAME="./test.db"
 
-sqlite3 "${DB_NAME}" -csv "SELECT * FROM game WHERE type = 'number'"  \
-    | parallel \
-        -j "${N_JOBS}" \
-        --colsep ',' \
-        'query_part_1 {1} {2} {3} {4} {5}' "${DB_NAME}" \
+[[ -f "${DB_NAME}" ]] && rm "${DB_NAME}" 
+create_db "${DB_NAME}"
+
+part_1_query "${DB_NAME}"  \
     | awk '{sum+=$0} END {print sum}'
 
-sqlite3 "${DB_NAME}" -csv "SELECT * FROM game WHERE type = 'symbol' AND match_capture = '*'" \
-    | parallel \
-        -j "${N_JOBS}" \
-        --colsep ',' \
-        'query_part_2 {1} {2} {3} {4} {5}' "${DB_NAME}"  \
+part_2_query "${DB_NAME}"  \
     | awk '{sum+=$0} END {print sum}'
-
-        

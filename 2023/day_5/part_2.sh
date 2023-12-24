@@ -33,15 +33,16 @@
             }
         '
 ) \
+    | tee >( awk '!a[$1]++ && !/seed_ranges/ {print $1".temp"}' > file_order.temp  ) \
     | while IFS=' ' read -r FILE_NAME DATA;do
         echo "${DATA}" >> "${FILE_NAME}.temp"
       done
 
 # Reading first ranges 
-read -d '' SEED_RANGES < <( cat seed_ranges.temp)
+read -d '' SEED_RANGES < seed_ranges.temp
 
 # Get the correct order from the original input file
-read -d '' FILE_ORDER < <(grep '[[:alpha:]]' sample_1.txt | sed '1d; s: .*::;s:$:.temp:')
+read -d '' FILE_ORDER < file_order.temp
 
 # This took a lot of my mental health to write
 # i'm still not shore how it works, but it does

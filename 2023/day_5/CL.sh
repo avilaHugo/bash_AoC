@@ -31,68 +31,61 @@ rm *.temp
       done
 
 
-read -d '' SEED_RANGES < seed_ranges.temp
+read -d '' SEED_RANGES < <( cat seed_ranges.temp)
 read -d '' FILE_ORDER < <(grep '[[:alpha:]]' sample_1.txt | sed '1d; s: .*::;s:$:.temp:')
 
 
 while read -r MAP_FILE ;do
-    echo 
-    echo '---------------'
-    echo "${MAP_FILE@A}"
-
-
     read -r -d '' SEED_RANGES < <(
 
         while read -r SEED_START SEED_END ;do
-            # echo "SEEDS RANGE: ${SEED_START} ${SEED_END}"
 
-            has_overlaps=false
+            overlap_intervals=()
+
             while read -r DEST_START DEST_END SOURCE_START SOURCE_END;do
-            # echo "${DEST_START}" "${DEST_END}" "${SOURCE_START}" "${SOURCE_END}"
+
                 # Check if intervals not overlap
-                if ! (( SEED_START <= SOURCE_END )) && (( SEED_END >= SOURCE_START ));then
+                if ! (( (SEED_START <= SOURCE_END) && (SEED_END >= SOURCE_START) ));then
                     continue
                 fi
 
-                has_overlaps=true
-
-                if (( SEED_START < SOURCE_START ));then
-                    echo "${SEED_START}" "$((SOURCE_START - 1))"
-                    SEED_START="${SOURCE_START}"
-                fi
-
-                l=$((DEST_START + (SEED_START - SOURCE_START)))
-
-                if (( SEED_END > SOURCE_END ));then
-                    SEED_START="$((SOURCE_END + 1))"    
-                fi
-
-                L=$((DEST_START + (SEED_END - SOURCE_START)))
-
-                echo "${l} ${L}" 
+                overlap_intervals+=("${DEST_START} ${DEST_END} ${SOURCE_START} ${SOURCE_END}")
 
             done < <(sort -n -k3 -t ' ' "${MAP_FILE}")
 
-            echo "${SEED_START} ${SEED_END}" 
+
+            if (( ${#overlap_intervals[@]} < 1 ));then
+                echo "${SEED_START}" "${SEED_END}"
+                continue
+            fi
+            
+            while read -r DEST_START DEST_END SOURCE_START SOURCE_END;do
+                if (( SEED_START < SOURCE_START ));then
+                    echo "${SEED_START} $(( SOURCE_START - 1 ))"
+                    SEED_START=$(( SOURCE_START ))
+                fi
+
+                l=$(( DEST_START + (SEED_START - SOURCE_START) ))
+                L=$(( DEST_START + (SEED_END - SOURCE_START) ))
+
+                if (( SEED_END > SOURCE_END ));then
+                    L=$(( DEST_START + (SOURCE_END - SOURCE_START) ))
+                fi
+
+                echo "${l}" "${L}"
+                SEED_START=$(( SOURCE_END + 1 ))
+
+            done < <(printf '%s\n' "${overlap_intervals[@]}" )
+
+            ((SEED_START <= SEED_END)) && echo "${SEED_START}" "${SEED_END}"
 
         done <<< "${SEED_RANGES}"
     )
     
-    printf '%s\n' "${SEED_RANGES[@]}"
-
-    echo '---------------'
-    echo 
-done < <( cat <<< "${FILE_ORDER}")
+done <<< "${FILE_ORDER}"
 
 printf '%s\n' "${SEED_RANGES[@]}" \
     | sort -n -k1 -t ' ' \
     | head -1 \
-    | cut -f 1
-
-
-
-
-
-
-
+    | cut -f 1 -d ' '
 

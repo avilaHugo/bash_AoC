@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 
+# USAGE: this.sh < input.txt
 
-rm *.temp
+# WARNING: This will create and delete .temp files
+#          at the current dir. If you have some files
+#          that match *.temp they are also going to be deleted.            
 
+
+# This will format the lines and prefix then with
+# an identifier. Files will be created using the
+# identifier Ex: seed_ranges.temp, soil-to-blablabla.temp
 (
     # Setting up seeds ranges
     head -2 \
@@ -11,7 +18,7 @@ rm *.temp
         | paste -d ' ' -- - - \
         | awk '{print "seed_ranges", $1, ($1 + ( $2 - 1 ))}'
 
-    # Formating ranges 
+    # Formating map ranges 
     sed '/^$/ s/^$/@/; $a@' \
         | while IFS=$'\n' read -r -d '@' MAP_TITLE MAP_RANGES;do
                 while read -r MAP_RANGE;do
@@ -30,11 +37,18 @@ rm *.temp
         echo "${DATA}" >> "${FILE_NAME}.temp"
       done
 
-
+# Reading first ranges 
 read -d '' SEED_RANGES < <( cat seed_ranges.temp)
+
+# Get the correct order from the original input file
 read -d '' FILE_ORDER < <(grep '[[:alpha:]]' sample_1.txt | sed '1d; s: .*::;s:$:.temp:')
 
+# This took a lot of my mental health to write
+# i'm still not shore how it works, but it does
+# awnser correctly. 
 
+# The ideia is to mutate SEED_RANGES on each
+# MAP_FILE.
 while read -r MAP_FILE ;do
     read -r -d '' SEED_RANGES < <(
 
@@ -49,16 +63,22 @@ while read -r MAP_FILE ;do
                     continue
                 fi
 
+                # Add intervals that do overlap 
                 overlap_intervals+=("${DEST_START} ${DEST_END} ${SOURCE_START} ${SOURCE_END}")
 
             done < <(sort -n -k3 -t ' ' "${MAP_FILE}")
 
-
+            # Report seed ranges with no overlap intervals
             if (( ${#overlap_intervals[@]} < 1 ));then
                 echo "${SEED_START}" "${SEED_END}"
                 continue
             fi
-            
+           
+            # I think i could do this on the first while loop
+            # but i could not figure it out, so i did the chunking
+            # logic separated from the overlap check.
+
+            # This will do the map conversions on each overlap range
             while read -r DEST_START DEST_END SOURCE_START SOURCE_END;do
                 if (( SEED_START < SOURCE_START ));then
                     echo "${SEED_START} $(( SOURCE_START - 1 ))"
@@ -76,7 +96,8 @@ while read -r MAP_FILE ;do
                 SEED_START=$(( SOURCE_END + 1 ))
 
             done < <(printf '%s\n' "${overlap_intervals[@]}" )
-
+           
+            # This will print the ramaing seed range on the right side.
             ((SEED_START <= SEED_END)) && echo "${SEED_START}" "${SEED_END}"
 
         done <<< "${SEED_RANGES}"
@@ -84,8 +105,11 @@ while read -r MAP_FILE ;do
     
 done <<< "${FILE_ORDER}"
 
+# Read the last SEED_RANGES and print the 
+# lowest range (left part).
 printf '%s\n' "${SEED_RANGES[@]}" \
     | sort -n -k1 -t ' ' \
     | head -1 \
     | cut -f 1 -d ' '
 
+rm *.temp

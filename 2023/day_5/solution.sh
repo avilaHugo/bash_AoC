@@ -2,7 +2,12 @@
 
 # USAGE: this.sh < input.txt
 
-# WARNING: This will create and delete .temp files
+# This is the solution for part 2. For part 1, just
+# convert the input like this:
+# $ sed -r '1s/([[:digit:]]+)/\1 1/g' sample_1.txt > converted_input.txt
+# $ solution.sh < converted_input.txt
+
+# WARNING !!! This script will create and delete .temp files
 #          at the current dir. If you have some files
 #          that match *.temp they are also going to be deleted.            
 
@@ -41,12 +46,11 @@
 # Reading first ranges 
 read -d '' SEED_RANGES < seed_ranges.temp
 
-# Get the correct order from the original input file
+# Get the correct order of the map files.
 read -d '' FILE_ORDER < file_order.temp
 
 # This took a lot of my mental health to write
-# i'm still not shore how it works, but it does
-# awnser correctly. 
+# i'm still not a 100% sure how it works.
 
 # The ideia is to mutate SEED_RANGES on each
 # MAP_FILE.

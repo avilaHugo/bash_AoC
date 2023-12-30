@@ -15,11 +15,14 @@ done \
                     pos_mat[l][2]=z
                 }
             }
+            for (x=1; x<=9; x=x+2) {
+                delete pos_mat[x]
+            }
        }
 
-       function is_path(i, j, I, J, symbol) {
-            
-       }
+       # function is_path(i, j, I, J, symbol) {
+            # 
+       # }
 
        $3 == "S" { s_i=$1; s_j=$2 }
 
@@ -31,22 +34,23 @@ done \
             split("0,0 -1,1 0,1 -1,0 -1,0 0,1", js, " ")
             for (i in symbols) {
                 split(is[i], arr, ",")
-                sym_map[symbols[i]]["i"][1]=arr[1]
-                sym_map[symbols[i]]["i"][2]=arr[2]
+                sym_map[symbols[i]]["i"][arr[1]]=1
+                sym_map[symbols[i]]["i"][arr[2]]=1
 
                 split(js[i], arr, ",")
-                sym_map[symbols[i]]["j"][1]=arr[1]
-                sym_map[symbols[i]]["j"][2]=arr[2]
+                sym_map[symbols[i]]["j"][arr[1]]=1
+                sym_map[symbols[i]]["j"][arr[2]]=1
             }
 
             curr_i="Na"
             curr_j="Na"
 
             iter_adj(s_i, s_j, pos_mat)
+
             for (x in pos_mat) {
                 i = pos_mat[x][1]
                 j = pos_mat[x][2]
-                print i, j
+                symbol = game[i][j]
             }
 
             # while ( s_i != curr_i && s_j != curr_j ) {

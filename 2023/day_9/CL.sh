@@ -15,8 +15,9 @@ awk '
         split($0, arr, " ")
 
         while (1) {
-
-            trace_last[++L]=arr[length(arr)]
+            ++T
+            trace_last[T]=arr[length(arr)]
+            trace_first[T]=arr[1]
 
             if ( check_all_zeros(arr) == 1 ) {
                 break
@@ -34,15 +35,23 @@ awk '
             delete diff
 
         }
-        L=0
+        T=0
 
-        new_val = 0
+        new_last = 0
+        new_first = 0
         for (i=length(trace_last); i > 0; i--) {
-            new_val += trace_last[i] 
+            new_last += trace_last[i] 
+            new_first = trace_first[i] - new_first 
         }
         delete trace_last
+        delete trace_first
 
-        print new_val
-    } 
-' \
-    | awk '{sum+=$0} END {print sum}'
+        p1+=new_last
+        p2+=new_first
+    }
+
+    END {
+        print "Part 1:", p1
+        print "Part 2:", p2
+    }
+'

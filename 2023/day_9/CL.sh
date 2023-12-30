@@ -40,6 +40,7 @@ awk '
         for (i=length(trace_last); i > 0; i--) {
             new_val += trace_last[i] 
         }
+        delete trace_last
 
         print new_val
     } 
